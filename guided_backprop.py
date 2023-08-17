@@ -1,81 +1,76 @@
-#%%
 import torch
-import numpy as np
 import torch.nn as nn
 from torchvision import datasets, models
-from torchvision import transforms
-from PIL import Image
-import matplotlib.pyplot as plt
-import urllib.request
 
 
-# Get pretrained VGG19
-weights = models.VGG19_Weights.DEFAULT
-vgg = models.vgg19(weights=weights)
-
-
-
-#%% Download Image
-url = 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/fe/American_Eskimo_Dog_1.jpg/1200px-American_Eskimo_Dog_1.jpg'
-urllib.request.urlretrieve(url, 'test.jpg')
-
-input_img = Image.open('test.jpg')
-
-# Show image
-plt.imshow(input_img)
-plt.show()
-
+class GuidedBackprop:
+    def __init__(self, model_name):
+        self.model_name = model_name
+        self.model, self.weights = self._get_model(model_name)
+        self.transforms = self._get_transforms()
+        self.input_grad = None
+        self.activation_maps = []
+        self.activation_maps_dict = None 
+        self.layer_names = []
+        self.out = None
+        self.model_hooks()
         
-activations = []
-grad_vis = []
-image_reconstruction = None
+    def _get_model(self, model_name):
+        weight_name = model_name.upper() + "_Weights"
+        weights = getattr(models, weight_name).DEFAULT
+        model = getattr(models, model_name.lower())(weights=weights)
+        return model, weights
 
-preprocess = weights.transforms()
-input_tensor = preprocess(input_img).unsqueeze(0)
+    def _get_transforms(self):
+        transforms = self.weights.transform()
+        return transforms
+ 
+    def model_hooks(self):
+        # Forward pass, get activation maps
+        def first_layer_hook_fn(m, g_in, g_out):
+            self.input_grad = g_in[0]
 
+        def fwd_hook_fn(m, i, o):
+            self.activation_maps.append(o) 
 
-def first_layer_hook_fn(m, g_in, g_out):
-    global image_reconstruction
-    image_reconstruction = g_in[0]
+        def back_hook_fn(m, g_in, g_out):
+            activation = self.activation_maps.pop()
+            act_mask = activation > 0
+            grad_positive = g_out[0] > 0
+
+            # Mask the gradients with the activation
+            grad = g_out[0] * act_mask * grad_positive
+            return (grad,)
+
+        for name, layer in self.model.named_modules():
+            if isinstance(layer, nn.ReLU):
+                self.layer_names.append(f'conv_layer{relu_count}')
+                layer.register_forward_hook(fwd_hook_fn)
+                layer.register_backward_hook(back_hook_fn)
+                relu_count += 1
+        
+        self.model.features[0].register_backward_hook(first_layer_hook_fn)
+
+    def predict(self, input_image):
+        # Apply transforms
+        input_image = self.transforms(input_image).unsqueeze(0)
+
+        # Perform prediction
+        self.model.eval()
+        self.out = self.model(input_image.requires_grad_())
+        prediction = torch.nn.functional.softmax(self.out[0], dim=0)
+        confidences = {self.weights.meta["categories"][i]: float(prediction[i]) for i in range(1000)}
+        
+        # Create a dictionary of activation maps
+        self.activation_maps_dict = dict(zip(self.layer_names, self.activation_maps))
     
-def fwd_hook_fn(m, i, o):
-    activations.append(o) 
+        return confidences
+    
+    def backprop(self):
+        # Backward pass
+        grad_target_map = torch.zeros(self.out.shape, dtype=torch.float)
+        grad_target_map[0][self.predictions.argmax().item()] = 1
+        self.out.backward(grad_target_map)
 
-def back_hook_fn(m, g_in, g_out):
-    print(g_out[0])
-    activation = activations.pop()
-    # activation = activation.clamp(min=0)
-    act_mask = activation > 0
-    grad_positive = g_out[0] > 0
+        return self.input_grad, self.activation_maps_dict
 
-    # Mask the gradients with the activation
-    grad = g_out[0] * act_mask * grad_positive
-    grad_vis.append(grad)
-
-    return (grad,)
-
-for name, layer in vgg.named_modules():
-  if isinstance(layer, nn.ReLU):
-
-    layer.register_forward_hook(fwd_hook_fn)
-    layer.register_backward_hook(back_hook_fn)
-
-
-vgg.features[0].register_backward_hook(first_layer_hook_fn)
-
-out = vgg(input_tensor.requires_grad_())
-activation_maps = activations.copy()
-
-grad_target_map = torch.zeros(out.shape, dtype=torch.float)
-grad_target_map[0][out.argmax().item()] = 1
-out.backward(grad_target_map)
-
-
-#%% Visualize activations
-plt.imshow(activation_maps[20][0][10].detach())
-plt.show()
-
-
-#%% Visualize input gradient
-plt.imshow(image_reconstruction[0].permute(1,2,0).detach())
-plt.show()
