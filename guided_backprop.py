@@ -9,6 +9,7 @@ class GuidedBackprop:
         self.model, self.weights = self._get_model(model_name)
         self.transforms = self._get_transforms()
         self.input_grad = None
+        self.predictions = None
         self.activation_maps = []
         self.activation_maps_dict = None 
         self.layer_names = []
@@ -16,13 +17,13 @@ class GuidedBackprop:
         self.model_hooks()
         
     def _get_model(self, model_name):
-        weight_name = model_name.upper() + "_Weights"
+        weight_name = model_name + "_Weights"
         weights = getattr(models, weight_name).DEFAULT
         model = getattr(models, model_name.lower())(weights=weights)
         return model, weights
 
     def _get_transforms(self):
-        transforms = self.weights.transform()
+        transforms = self.weights.transforms()
         return transforms
  
     def model_hooks(self):
@@ -42,6 +43,7 @@ class GuidedBackprop:
             grad = g_out[0] * act_mask * grad_positive
             return (grad,)
 
+        relu_count = 0
         for name, layer in self.model.named_modules():
             if isinstance(layer, nn.ReLU):
                 self.layer_names.append(f'conv_layer{relu_count}')
@@ -58,8 +60,8 @@ class GuidedBackprop:
         # Perform prediction
         self.model.eval()
         self.out = self.model(input_image.requires_grad_())
-        prediction = torch.nn.functional.softmax(self.out[0], dim=0)
-        confidences = {self.weights.meta["categories"][i]: float(prediction[i]) for i in range(1000)}
+        self.predictions = torch.nn.functional.softmax(self.out[0], dim=0)
+        confidences = {self.weights.meta["categories"][i]: float(self.predictions[i]) for i in range(1000)}
         
         # Create a dictionary of activation maps
         self.activation_maps_dict = dict(zip(self.layer_names, self.activation_maps))
