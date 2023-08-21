@@ -1,7 +1,8 @@
+from functools import partial
 import torch
 import torch.nn as nn
-from torchvision import datasets, models
-from functools import partial
+from torchvision import models
+
 
 class GuidedBackprop:
     def __init__(self, model_name):
@@ -48,8 +49,8 @@ class GuidedBackprop:
         relu_count = 0
         for name, layer in self.model.named_modules():
             if isinstance(layer, nn.ReLU):
-                # self.layer_names.append(f'conv_layer{relu_count}')
-                layer.register_forward_hook(partial(fwd_hook_fn, name+'.'+f'conv_layer{relu_count}'))
+                layer_name = name + '.' + f'conv_layer{relu_count}'
+                layer.register_forward_hook(partial(fwd_hook_fn, layer_name))
                 layer.register_backward_hook(back_hook_fn)
                 relu_count += 1
         
@@ -63,11 +64,9 @@ class GuidedBackprop:
         self.model.eval()
         self.out = self.model(input_image.requires_grad_())
         self.predictions = torch.nn.functional.softmax(self.out[0], dim=0)
-        confidences = {self.weights.meta["categories"][i]: float(self.predictions[i]) for i in range(1000)}
+        confidences = {self.weights.meta["categories"][i]: 
+            float(self.predictions[i]) for i in range(1000)}
         
-        # Create a dictionary of activation maps
-        # self.activation_maps_dict = dict(zip(self.layer_names, self.activation_maps))
-    
         return confidences
     
     def backprop(self):
