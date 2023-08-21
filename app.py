@@ -28,7 +28,15 @@ class GradioApp:
                             with gr.Column(scale=1):
                                 run_button = gr.Button(value="Run")
 
-                        example = gr.Examples(examples=["test.jpg"], inputs=image)
+                        example = gr.Examples(
+                            examples=[
+                                "images/bird.jpg", 
+                                "images/lion.jpg",
+                                "images/tiger.jpg",
+                                "images/pomegranate.jpg",
+                                "images/strawberry.jpg"
+                            ], 
+                            inputs=image)
                     with gr.Column(scale=1):
                         model_name = gr.Dropdown(choices=["VGG19", "AlexNet"], label="Model", info="Choose from the models", interactive=True)
                         probs = gr.Label(label="Class Probs", num_top_classes=3)
