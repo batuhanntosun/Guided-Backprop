@@ -65,7 +65,7 @@ class GradioApp:
 
                     with gr.Column(scale=1):
                         grad_applied = gr.Image(type="pil", label="Gradient Applied", height=300)
-                        grad_ratio = gr.Slider(label="Scale", minimum=0.0, maximum=1.0, value=0.1, interactive=True)
+                        grad_ratio = gr.Slider(label="Scale", minimum=0.0, maximum=1.0, value=0.5, interactive=True)
 
             # Set up callbacks
             reset_button.add([image, input_grad, probs, activation_map, 
@@ -96,19 +96,18 @@ class GradioApp:
             
             compute_grad_btn.click(
                 self.apply_input_grad,
-                inputs=grad_ratio,
+                inputs=[image, grad_ratio],
                 outputs=grad_applied
             )
 
             grad_ratio.change(
                 self.apply_input_grad,
-                inputs=grad_ratio,
+                inputs=[image, grad_ratio],
                 outputs=grad_applied
             )
 
     def run(self, model_name, input_image):
         self.gp = GuidedBackprop(model_name)
-        self.input_img = self.gp.transforms(input_image)
         self.probs = self.gp.predict(input_image)
         self.input_grad, self.activation_maps = self.gp.backprop()
         layers = gr.update(choices=list(self.activation_maps.keys()))
@@ -130,13 +129,11 @@ class GradioApp:
         input_grad = Image.fromarray(np.uint8(input_grad*255))
         return input_grad
 
-    def apply_input_grad(self, grad_ratio):
-        grad_applied_img = self.input_img
+    def apply_input_grad(self, input_image, grad_ratio):
+        grad_applied_img = self.gp.transforms(input_image)
         mean, std = torch.FloatTensor(self.gp.transforms.mean) , torch.FloatTensor(self.gp.transforms.std)
-        grad_applied_img -= grad_ratio * self.input_grad[0].detach()
-        grad_applied_img = denormalize(grad_applied_img, mean, std)
-        grad_applied_img = range_norm(grad_applied_img)
-        # grad_applied_img = grad_applied_img.clip(0,1)
+        grad_applied_img = grad_applied_img - grad_ratio * self.input_grad[0].detach()
+        grad_applied_img = range_norm(denormalize(grad_applied_img, mean, std))
         grad_applied_img = Image.fromarray(np.uint8(grad_applied_img.permute(1,2,0)*255))
         return grad_applied_img
 
