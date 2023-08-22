@@ -1,11 +1,10 @@
 import gradio as gr
 import numpy as np
-import torch
 from PIL import Image
 from matplotlib import cm
 
 from guided_backprop import GuidedBackprop
-from utils import range_norm, denormalize
+from utils import range_norm, grad2heatmapped
 
 
 class GradioApp:
@@ -48,7 +47,7 @@ class GradioApp:
                 gr.Markdown("## Visualize activation maps")
                 with gr.Row():
                     with gr.Column(scale=1):
-                        chosen_layer = gr.Dropdown(label="Layer", info="Choose from the layers", interactive=True)
+                        chosen_layer = gr.Dropdown(label="Layer", value="conv_layer0", info="Choose from the layers", interactive=True)
                         chosen_filter = gr.Slider(label="Filter", info="Choose from the filters", interactive=True)
                         color = gr.Radio(["heatmap", "gray"], value="heatmap", label="Color", info="Choose the color of the activation map")
                     
@@ -127,15 +126,16 @@ class GradioApp:
         input_grad = self.input_grad[0].permute(1,2,0).detach()
         input_grad = range_norm(input_grad)
         input_grad = Image.fromarray(np.uint8(input_grad*255))
+        self.input_grad_img = input_grad
         return input_grad
 
     def apply_input_grad(self, input_image, grad_ratio):
-        grad_applied_img = self.gp.transforms(input_image)
-        mean, std = torch.FloatTensor(self.gp.transforms.mean) , torch.FloatTensor(self.gp.transforms.std)
-        grad_applied_img = grad_applied_img - grad_ratio * self.input_grad[0].detach()
-        grad_applied_img = range_norm(denormalize(grad_applied_img, mean, std))
-        grad_applied_img = Image.fromarray(np.uint8(grad_applied_img.permute(1,2,0)*255))
-        return grad_applied_img
+        heatmapped = grad2heatmapped(
+            input_image, 
+            self.input_grad_img, 
+            grad_ratio)
+        
+        return heatmapped
 
     def launch(self):
         self.app.launch()
