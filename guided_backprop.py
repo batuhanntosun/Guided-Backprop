@@ -13,7 +13,6 @@ class GuidedBackprop:
         self.predictions = None
         self.activation_maps = []
         self.activation_maps_dict = dict() 
-        # self.layer_names = []
         self.out = None
         self.model_hooks()
         
