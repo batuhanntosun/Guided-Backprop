@@ -19,7 +19,8 @@ class GradioApp:
         with gr.Blocks() as self.app:
             # Inference
             with gr.Box():
-                gr.Markdown("## Run inference")
+                gr.Markdown("# Run inference")
+            with gr.Box():
                 with gr.Row():
                     with gr.Column(scale=1):
                         image = gr.Image(type="pil", label="Input Image", height=200)
@@ -44,10 +45,12 @@ class GradioApp:
 
             # Visualize activation maps
             with gr.Box():
-                gr.Markdown("## Visualize activation maps")
+                gr.Markdown("# Visualize activation maps")
+                gr.Markdown("Choose a layer and a filter to visualize the activation map.")
+            with gr.Box():
                 with gr.Row():
                     with gr.Column(scale=1):
-                        chosen_layer = gr.Dropdown(label="Layer", value="conv_layer0", info="Choose from the layers", interactive=True)
+                        chosen_layer = gr.Dropdown(label="Layer", info="Choose from the layers", interactive=True)
                         chosen_filter = gr.Slider(label="Filter", info="Choose from the filters", interactive=True)
                         color = gr.Radio(["heatmap", "gray"], value="heatmap", label="Color", info="Choose the color of the activation map")
                     
@@ -56,7 +59,10 @@ class GradioApp:
 
             # Visualize input gradient
             with gr.Box():
-                gr.Markdown("## Visualize input gradient")
+                gr.Markdown("# Visualize input gradient")
+                gr.Markdown("Compute the input gradient. Visualize the spatial region of the input image that contributes to the prediction.")
+                gr.Markdown("Change the scale to adjust the opactiy of the heatmap.")
+            with gr.Box():
                 with gr.Row():
                     with gr.Column(scale=1):
                         input_grad = gr.Image(type="pil", label="Input Gradient", height=300)
@@ -68,7 +74,7 @@ class GradioApp:
 
             # Set up callbacks
             reset_button.add([image, input_grad, probs, activation_map, 
-                              input_grad, model_name, chosen_layer, chosen_filter, grad_applied, grad_ratio])
+                input_grad, grad_applied, chosen_layer, chosen_filter])
             
             run_button.click(
                 self.run, 
