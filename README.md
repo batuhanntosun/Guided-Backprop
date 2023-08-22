@@ -3,7 +3,7 @@
 This project is a Gradio app that visualize activation maps and input gradients for deep learning models interactively. Using guided backpropagation, spatial regions of input images that most contribute to the prediction are highlighted. There are two models available: VGG19 and AlexNet. To get obtain activation maps and input gradients, Pytorch's forward and backward hooks are used.
 
 <p align="center">
-<img src="images/app.gif" width="600"/>
+<img src="images/app.gif" width="700"/>
 </p>
 
 ### Run on HuggingFace
